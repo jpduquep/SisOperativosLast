@@ -158,21 +158,13 @@ void readFromFile(const string& filename, string& encodedData, string& serialize
     int key[MATRIX_SIZE][MATRIX_SIZE] = {{3, 3}, {2, 5}};
     int mod = MOD;  // Número de caracteres en el conjunto ASCII
 
-    // string decryptedCompressedData = hillDecipher(string(compressedData.begin(), compressedData.end()), key, mod);
-    // cout << "Decompressed data: " << decryptedCompressedData << endl;
-
     string decryptedCompressedPatientData = hillDecipher(string(compressedPatientData.begin(), compressedPatientData.end()), key, mod);
     cout << "Decompressed patient data: " << decryptedCompressedPatientData << endl;
 
-    // string decryptedCompressedTree = hillDecipher(string(compressedTree.begin(), compressedTree.end()), key, mod);
-    // cout << "Decompressed tree: " << decryptedCompressedTree << endl;
-
     // Descomprimir los datos
-    // uLongf decompressedSize = decryptedCompressedData.size() * 4; // Estimar tamaño descomprimido
     uLongf decompressedSize = compressedData.size() * 4; // Estimar tamaño descomprimido
     encodedData.resize(decompressedSize);
     int res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(compressedData.data()), compressedData.size());
-
 
     // Manejar errores de descompresión
     while (res == Z_BUF_ERROR) {
@@ -188,7 +180,6 @@ void readFromFile(const string& filename, string& encodedData, string& serialize
     encodedData.resize(decompressedSize);
 
     // Descomprimir el árbol
-    // uLongf decompressedTreeSize = decryptedCompressedTree.size() * 4; // Estimar tamaño descomprimido
     uLongf decompressedTreeSize = compressedTree.size() * 4; // Estimar tamaño descomprimido
     serializedTree.resize(decompressedTreeSize);
     res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(compressedTree.data()), compressedTree.size());

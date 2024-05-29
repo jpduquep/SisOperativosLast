@@ -5,7 +5,7 @@
 #include <map>
 #include <string>
 #include <functional>
-#include <zlib.h> // Biblioteca zlib para compresión
+#include <zlib.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -206,10 +206,7 @@ int main() {
 
     // Encrypt the compressed data and compressed tree using Hill cipher
     int key[2][2] = {{3, 3}, {2, 5}};
-    int mod = 256;  // Número de caracteres en el conjunto ASCII
-
-    // std::string encryptedData = hillCipher(std::string(compressedData.begin(), compressedData.begin() + compressedSize), key, mod);
-    // std::string encryptedTree = hillCipher(std::string(compressedTree.begin(), compressedTree.begin() + compressedTreeSize), key, mod);
+    int mod = 256;
 
     // Encrypt patient data
     std::string patientData = "Name: " + patient.name + "\n" +
@@ -220,7 +217,6 @@ int main() {
                               "Diagnosis: " + patient.diagnosis + "\n";
     std::string encryptedPatientData = hillCipher(patientData, key, mod);
 
-    // saveToFile("compressed.pap", encryptedData, encryptedTree, encryptedPatientData, width, height, channels);
     saveToFile("compressed.pap", std::string(compressedData.begin(), compressedData.begin() + compressedSize), std::string(compressedTree.begin(), compressedTree.begin() + compressedTreeSize), encryptedPatientData, width, height, channels);
 
     std::cout << "Image and patient data compressed, encrypted, and saved as compressed.pap" << std::endl;
