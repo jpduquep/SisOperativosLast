@@ -8,12 +8,12 @@
 #include "stb_image_write.h"
 #include <string>
 #include <cctype>
-#include <algorithm>  // Incluimos la biblioteca algorithm
+#include <algorithm>
 
 using namespace std;
 
 const int MATRIX_SIZE = 2;
-const int MOD = 256;  // Usamos 256 para cubrir todos los caracteres ASCII
+const int MOD = 256;
 
 // Función para calcular el determinante de una matriz 2x2
 int determinant(int matrix[MATRIX_SIZE][MATRIX_SIZE]) {
@@ -158,26 +158,27 @@ void readFromFile(const string& filename, string& encodedData, string& serialize
     int key[MATRIX_SIZE][MATRIX_SIZE] = {{3, 3}, {2, 5}};
     int mod = MOD;  // Número de caracteres en el conjunto ASCII
 
-    string decryptedCompressedData = hillDecipher(string(compressedData.begin(), compressedData.end()), key, mod);
-    cout << "Decompressed data: " << decryptedCompressedData << endl;
+    // string decryptedCompressedData = hillDecipher(string(compressedData.begin(), compressedData.end()), key, mod);
+    // cout << "Decompressed data: " << decryptedCompressedData << endl;
 
     string decryptedCompressedPatientData = hillDecipher(string(compressedPatientData.begin(), compressedPatientData.end()), key, mod);
     cout << "Decompressed patient data: " << decryptedCompressedPatientData << endl;
 
-    string decryptedCompressedTree = hillDecipher(string(compressedTree.begin(), compressedTree.end()), key, mod);
-    cout << "Decompressed tree: " << decryptedCompressedTree << endl;
+    // string decryptedCompressedTree = hillDecipher(string(compressedTree.begin(), compressedTree.end()), key, mod);
+    // cout << "Decompressed tree: " << decryptedCompressedTree << endl;
 
     // Descomprimir los datos
-    uLongf decompressedSize = decryptedCompressedData.size() * 4; // Estimar tamaño descomprimido
+    // uLongf decompressedSize = decryptedCompressedData.size() * 4; // Estimar tamaño descomprimido
+    uLongf decompressedSize = compressedData.size() * 4; // Estimar tamaño descomprimido
     encodedData.resize(decompressedSize);
-    int res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(decryptedCompressedData.data()), decryptedCompressedData.size());
+    int res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(compressedData.data()), compressedData.size());
 
 
     // Manejar errores de descompresión
     while (res == Z_BUF_ERROR) {
         decompressedSize *= 2; // Aumentar el tamaño del buffer
         encodedData.resize(decompressedSize);
-        res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(decryptedCompressedData.data()), decryptedCompressedData.size());
+        res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(compressedData.data()), compressedData.size());
     }
 
     if (res != Z_OK) {
@@ -187,15 +188,16 @@ void readFromFile(const string& filename, string& encodedData, string& serialize
     encodedData.resize(decompressedSize);
 
     // Descomprimir el árbol
-    uLongf decompressedTreeSize = decryptedCompressedTree.size() * 4; // Estimar tamaño descomprimido
+    // uLongf decompressedTreeSize = decryptedCompressedTree.size() * 4; // Estimar tamaño descomprimido
+    uLongf decompressedTreeSize = compressedTree.size() * 4; // Estimar tamaño descomprimido
     serializedTree.resize(decompressedTreeSize);
-    res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(decryptedCompressedTree.data()), decryptedCompressedTree.size());
+    res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(compressedTree.data()), compressedTree.size());
 
     // Manejar errores de descompresión
     while (res == Z_BUF_ERROR) {
         decompressedTreeSize *= 2; // Aumentar el tamaño del buffer
         serializedTree.resize(decompressedTreeSize);
-        res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(decryptedCompressedTree.data()), decryptedCompressedTree.size());
+        res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(compressedTree.data()), compressedTree.size());
     }
 
     if (res != Z_OK) {
@@ -212,9 +214,9 @@ int main() {
     readFromFile("compressed.pap", encodedData, serializedTree, patientData, width, height, channels);
 
     int index = 0;
-    Node* root = deserializeHuffmanTree(decryptedTree, index);
+    Node* root = deserializeHuffmanTree(serializedTree, index);
 
-    string decodedString = decode(root, decryptedData);
+    string decodedString = decode(root, encodedData);
     vector<unsigned char> imageData(decodedString.begin(), decodedString.end());
 
     saveImage(imageData, width, height, channels, "imagenRecuperada.jpg");
