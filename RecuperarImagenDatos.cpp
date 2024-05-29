@@ -3,8 +3,77 @@
 #include <vector>
 #include <map>
 #include <sstream>
+#include <zlib.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include <string>
+#include <cctype>
+#include <algorithm>  // Incluimos la biblioteca algorithm
+
+using namespace std;
+
+const int MATRIX_SIZE = 2;
+const int MOD = 256;  // Usamos 256 para cubrir todos los caracteres ASCII
+
+// Función para calcular el determinante de una matriz 2x2
+int determinant(int matrix[MATRIX_SIZE][MATRIX_SIZE]) {
+    return matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0];
+}
+
+// Función para calcular la matriz inversa modular de una matriz 2x2
+void inverseMatrix(int matrix[MATRIX_SIZE][MATRIX_SIZE], int inverse[MATRIX_SIZE][MATRIX_SIZE], int mod) {
+    int det = determinant(matrix);
+    int det_inv = 0;
+    for (int i = 0; i < mod; i++) {
+        if ((det * i) % mod == 1) {
+            det_inv = i;
+            break;
+        }
+    }
+    inverse[0][0] = (matrix[1][1] * det_inv) % mod;
+    inverse[0][1] = (-matrix[0][1] * det_inv) % mod;
+    inverse[1][0] = (-matrix[1][0] * det_inv) % mod;
+    inverse[1][1] = (matrix[0][0] * det_inv) % mod;
+    for (int i = 0; i < MATRIX_SIZE; i++) {
+        for (int j = 0; j < MATRIX_SIZE; j++) {
+            if (inverse[i][j] < 0) {
+                inverse[i][j] += mod;
+            }
+        }
+    }
+}
+
+// Función para multiplicar matrices y aplicar módulo
+void multiplyMatrix(int matrix[MATRIX_SIZE][MATRIX_SIZE], int vector[MATRIX_SIZE], int result[MATRIX_SIZE], int mod) {
+    for (int i = 0; i < MATRIX_SIZE; i++) {
+        result[i] = 0;
+        for (int j = 0; j < MATRIX_SIZE; j++) {
+            result[i] += matrix[i][j] * vector[j];
+        }
+        result[i] = result[i] % mod;
+    }
+}
+
+// Función para descifrar el texto utilizando el cifrado de Hill
+string hillDecipher(string text, int key[MATRIX_SIZE][MATRIX_SIZE], int mod) {
+    int inverseKey[MATRIX_SIZE][MATRIX_SIZE];
+    inverseMatrix(key, inverseKey, mod);
+    string decryptedText = "";
+    for (size_t i = 0; i < text.length(); i += MATRIX_SIZE) {
+        int vector[MATRIX_SIZE];
+        for (int j = 0; j < MATRIX_SIZE; j++) {
+            vector[j] = static_cast<unsigned char>(text[i + j]);
+        }
+        int result[MATRIX_SIZE];
+        multiplyMatrix(inverseKey, vector, result, mod);
+        for (int j = 0; j < MATRIX_SIZE; j++) {
+            decryptedText += static_cast<char>(result[j]);
+        }
+    }
+    // Eliminar padding
+    decryptedText.erase(remove(decryptedText.begin(), decryptedText.end(), '\0'), decryptedText.end());
+    return decryptedText;
+}
 
 struct Node {
     char ch;
@@ -15,15 +84,15 @@ struct Node {
 };
 
 struct Patient {
-    std::string name;
+    string name;
     int age;
     float height;
     float weight;
-    std::string diagnosisDate;
-    std::string diagnosis;
+    string diagnosisDate;
+    string diagnosis;
 };
 
-Node* deserializeHuffmanTree(const std::string& str, int& index) {
+Node* deserializeHuffmanTree(const string& str, int& index) {
     if (index >= str.size()) return nullptr;
 
     if (str[index] == '1') {
@@ -36,8 +105,8 @@ Node* deserializeHuffmanTree(const std::string& str, int& index) {
     return node;
 }
 
-std::string decode(Node* root, const std::string& encodedData) {
-    std::string decodedString;
+string decode(Node* root, const string& encodedData) {
+    string decodedString;
     Node* curr = root;
     for (char bit : encodedData) {
         if (bit == '0') {
@@ -54,14 +123,14 @@ std::string decode(Node* root, const std::string& encodedData) {
     return decodedString;
 }
 
-void saveImage(const std::vector<unsigned char>& imageData, int width, int height, int channels, const std::string& filename) {
+void saveImage(const vector<unsigned char>& imageData, int width, int height, int channels, const string& filename) {
     stbi_write_jpg(filename.c_str(), width, height, channels, imageData.data(), 100);
 }
 
-void readFromFile(const std::string& filename, std::string& encodedData, std::string& serializedTree, int& width, int& height, int& channels, Patient& patient) {
-    std::ifstream inFile(filename, std::ios::binary);
+void readFromFile(const string& filename, string& encodedData, string& serializedTree, string& patientData, int& width, int& height, int& channels) {
+    ifstream inFile(filename, ios::binary);
     if (!inFile) {
-        std::cerr << "Error opening file for reading." << std::endl;
+        cerr << "Error opening file for reading." << endl;
         return;
     }
 
@@ -69,62 +138,89 @@ void readFromFile(const std::string& filename, std::string& encodedData, std::st
     inFile.read(reinterpret_cast<char*>(&height), sizeof(height));
     inFile.read(reinterpret_cast<char*>(&channels), sizeof(channels));
 
-    std::getline(inFile, patient.name);
-    patient.name = patient.name.substr(6); // Remove the "Name: " prefix
-
-    std::string line;
-    std::getline(inFile, line);
-    patient.age = std::stoi(line.substr(5)); // Remove the "Age: " prefix
-
-    std::getline(inFile, line);
-    patient.height = std::stof(line.substr(8)); // Remove the "Height: " prefix
-
-    std::getline(inFile, line);
-    patient.weight = std::stof(line.substr(8)); // Remove the "Weight: " prefix
-
-    std::getline(inFile, patient.diagnosisDate);
-    patient.diagnosisDate = patient.diagnosisDate.substr(16); // Remove the "Diagnosis Date: " prefix
-
-    std::getline(inFile, patient.diagnosis);
-    patient.diagnosis = patient.diagnosis.substr(11); // Remove the "Diagnosis: " prefix
-
     uint32_t encodedSize;
     inFile.read(reinterpret_cast<char*>(&encodedSize), sizeof(encodedSize));
-    encodedData.resize(encodedSize);
-    inFile.read(&encodedData[0], encodedSize);
+    vector<char> compressedData(encodedSize);
+    inFile.read(compressedData.data(), encodedSize);
+
+    uint32_t encodedPatientDataSize;
+    inFile.read(reinterpret_cast<char*>(&encodedPatientDataSize), sizeof(encodedPatientDataSize));
+    vector<char> compressedPatientData(encodedPatientDataSize);
+    inFile.read(compressedPatientData.data(), encodedPatientDataSize);
 
     uint32_t treeSize;
     inFile.read(reinterpret_cast<char*>(&treeSize), sizeof(treeSize));
-    serializedTree.resize(treeSize);
-    inFile.read(&serializedTree[0], treeSize);
+    vector<char> compressedTree(treeSize);
+    inFile.read(compressedTree.data(), treeSize);
 
     inFile.close();
+
+    int key[MATRIX_SIZE][MATRIX_SIZE] = {{3, 3}, {2, 5}};
+    int mod = MOD;  // Número de caracteres en el conjunto ASCII
+
+    string decryptedCompressedData = hillDecipher(string(compressedData.begin(), compressedData.end()), key, mod);
+    cout << "Decompressed data: " << decryptedCompressedData << endl;
+
+    string decryptedCompressedPatientData = hillDecipher(string(compressedPatientData.begin(), compressedPatientData.end()), key, mod);
+    cout << "Decompressed patient data: " << decryptedCompressedPatientData << endl;
+
+    string decryptedCompressedTree = hillDecipher(string(compressedTree.begin(), compressedTree.end()), key, mod);
+    cout << "Decompressed tree: " << decryptedCompressedTree << endl;
+
+    // Descomprimir los datos
+    uLongf decompressedSize = decryptedCompressedData.size() * 4; // Estimar tamaño descomprimido
+    encodedData.resize(decompressedSize);
+    int res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(decryptedCompressedData.data()), decryptedCompressedData.size());
+
+
+    // Manejar errores de descompresión
+    while (res == Z_BUF_ERROR) {
+        decompressedSize *= 2; // Aumentar el tamaño del buffer
+        encodedData.resize(decompressedSize);
+        res = uncompress(reinterpret_cast<Bytef*>(&encodedData[0]), &decompressedSize, reinterpret_cast<const Bytef*>(decryptedCompressedData.data()), decryptedCompressedData.size());
+    }
+
+    if (res != Z_OK) {
+        cerr << "Error descomprimiendo los datos: " << res << endl;
+        return;
+    }
+    encodedData.resize(decompressedSize);
+
+    // Descomprimir el árbol
+    uLongf decompressedTreeSize = decryptedCompressedTree.size() * 4; // Estimar tamaño descomprimido
+    serializedTree.resize(decompressedTreeSize);
+    res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(decryptedCompressedTree.data()), decryptedCompressedTree.size());
+
+    // Manejar errores de descompresión
+    while (res == Z_BUF_ERROR) {
+        decompressedTreeSize *= 2; // Aumentar el tamaño del buffer
+        serializedTree.resize(decompressedTreeSize);
+        res = uncompress(reinterpret_cast<Bytef*>(&serializedTree[0]), &decompressedTreeSize, reinterpret_cast<const Bytef*>(decryptedCompressedTree.data()), decryptedCompressedTree.size());
+    }
+
+    if (res != Z_OK) {
+        cerr << "Error descomprimiendo el árbol: " << res << endl;
+        return;
+    }
+    serializedTree.resize(decompressedTreeSize);
 }
 
 int main() {
-    std::string encodedData, serializedTree;
+    string patientData, encodedData, serializedTree;
     int width, height, channels;
-    Patient patient;
 
-    readFromFile("compressed.pap", encodedData, serializedTree, width, height, channels, patient);
+    readFromFile("compressed.pap", encodedData, serializedTree, patientData, width, height, channels);
 
     int index = 0;
-    Node* root = deserializeHuffmanTree(serializedTree, index);
+    Node* root = deserializeHuffmanTree(decryptedTree, index);
 
-    std::string decodedString = decode(root, encodedData);
-    std::vector<unsigned char> imageData(decodedString.begin(), decodedString.end());
+    string decodedString = decode(root, decryptedData);
+    vector<unsigned char> imageData(decodedString.begin(), decodedString.end());
 
     saveImage(imageData, width, height, channels, "imagenRecuperada.jpg");
 
-    std::cout << "Patient Data:" << std::endl;
-    std::cout << "Name: " << patient.name << std::endl;
-    std::cout << "Age: " << patient.age << std::endl;
-    std::cout << "Height: " << patient.height << std::endl;
-    std::cout << "Weight: " << patient.weight << std::endl;
-    std::cout << "Diagnosis Date: " << patient.diagnosisDate << std::endl;
-    std::cout << "Diagnosis: " << patient.diagnosis << std::endl;
-
-    std::cout << "Image saved as imagenRecuperada.jpg" << std::endl;
+    cout << patientData << endl;
+    cout << "Image saved as imagenRecuperada.jpg" << endl;
 
     return 0;
 }

@@ -3,7 +3,10 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <string>
 #include <functional>
+#include <zlib.h> // Biblioteca zlib para compresión
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -87,7 +90,7 @@ void saveHuffmanTree(Node* root, std::string& str) {
     saveHuffmanTree(root->right, str);
 }
 
-void saveToFile(const std::string& filename, const std::string& encodedData, const std::string& serializedTree, int width, int height, int channels, const Patient& patient) {
+void saveToFile(const std::string& filename, const std::string& encryptedData, const std::string& encryptedTree, const std::string& patientData, int width, int height, int channels) {
     std::ofstream outFile(filename, std::ios::binary);
     if (!outFile) {
         std::cerr << "Error opening file for writing." << std::endl;
@@ -98,20 +101,17 @@ void saveToFile(const std::string& filename, const std::string& encodedData, con
     outFile.write(reinterpret_cast<const char*>(&height), sizeof(height));
     outFile.write(reinterpret_cast<const char*>(&channels), sizeof(channels));
 
-    outFile << "Name: " << patient.name << "\n";
-    outFile << "Age: " << patient.age << "\n";
-    outFile << "Height: " << patient.height << "\n";
-    outFile << "Weight: " << patient.weight << "\n";
-    outFile << "Diagnosis Date: " << patient.diagnosisDate << "\n";
-    outFile << "Diagnosis: " << patient.diagnosis << "\n";
+    uint32_t encryptedSize = encryptedData.size();
+    outFile.write(reinterpret_cast<const char*>(&encryptedSize), sizeof(encryptedSize));
+    outFile.write(encryptedData.c_str(), encryptedSize);
 
-    uint32_t encodedSize = encodedData.size();
-    outFile.write(reinterpret_cast<const char*>(&encodedSize), sizeof(encodedSize));
-    outFile.write(encodedData.c_str(), encodedSize);
+    uint32_t encryptedPatientDataSize = patientData.size();
+    outFile.write(reinterpret_cast<const char*>(&encryptedPatientDataSize), sizeof(encryptedPatientDataSize));
+    outFile.write(patientData.c_str(), encryptedPatientDataSize);
 
-    uint32_t treeSize = serializedTree.size();
+    uint32_t treeSize = encryptedTree.size();
     outFile.write(reinterpret_cast<const char*>(&treeSize), sizeof(treeSize));
-    outFile.write(serializedTree.c_str(), treeSize);
+    outFile.write(encryptedTree.c_str(), treeSize);
 
     outFile.close();
 }
@@ -130,6 +130,42 @@ void getPatientData(Patient& patient) {
     std::getline(std::cin, patient.diagnosisDate);
     std::cout << "Enter diagnosis: ";
     std::getline(std::cin, patient.diagnosis);
+}
+
+
+// Función para multiplicar matrices y aplicar módulo
+void multiplyMatrix(int matrix[2][2], int vector[2], int result[2], int mod) {
+    for (int i = 0; i < 2; i++) {
+        result[i] = 0;
+        for (int j = 0; j < 2; j++) {
+            result[i] += matrix[i][j] * vector[j];
+        }
+        result[i] = result[i] % mod;
+    }
+}
+
+// Función para cifrar el texto utilizando el cifrado de Hill
+std::string hillCipher(const std::string& text, int key[2][2], int mod) {
+    // Padding con un carácter especial (ASCII 0)
+    std::string paddedText = text;
+    char paddingChar = '\0';
+    while (paddedText.length() % 2 != 0) {
+        paddedText += paddingChar;
+    }
+
+    std::string encryptedText = "";
+    for (size_t i = 0; i < paddedText.length(); i += 2) {
+        int vector[2];
+        for (int j = 0; j < 2; j++) {
+            vector[j] = static_cast<unsigned char>(paddedText[i + j]);
+        }
+        int result[2];
+        multiplyMatrix(key, vector, result, mod);
+        for (int j = 0; j < 2; j++) {
+            encryptedText += static_cast<char>(result[j]);
+        }
+    }
+    return encryptedText;
 }
 
 int main() {
@@ -159,9 +195,34 @@ int main() {
     std::string serializedTree;
     saveHuffmanTree(root, serializedTree);
 
-    saveToFile("compressed.pap", encodedData, serializedTree, width, height, channels, patient);
+    // Compress the encoded data and serialized tree using zlib
+    uLongf compressedSize = compressBound(encodedData.size());
+    std::vector<char> compressedData(compressedSize);
+    compress(reinterpret_cast<Bytef*>(compressedData.data()), &compressedSize, reinterpret_cast<const Bytef*>(encodedData.data()), encodedData.size());
 
-    std::cout << "Image and patient data compressed and saved as compressed.pap" << std::endl;
+    uLongf compressedTreeSize = compressBound(serializedTree.size());
+    std::vector<char> compressedTree(compressedTreeSize);
+    compress(reinterpret_cast<Bytef*>(compressedTree.data()), &compressedTreeSize, reinterpret_cast<const Bytef*>(serializedTree.data()), serializedTree.size());
+
+    // Encrypt the compressed data and compressed tree using Hill cipher
+    int key[2][2] = {{3, 3}, {2, 5}};
+    int mod = 256;  // Número de caracteres en el conjunto ASCII
+
+    std::string encryptedData = hillCipher(std::string(compressedData.begin(), compressedData.begin() + compressedSize), key, mod);
+    std::string encryptedTree = hillCipher(std::string(compressedTree.begin(), compressedTree.begin() + compressedTreeSize), key, mod);
+
+    // Encrypt patient data
+    std::string patientData = "Name: " + patient.name + "\n" +
+                              "Age: " + std::to_string(patient.age) + "\n" +
+                              "Height: " + std::to_string(patient.height) + "\n" +
+                              "Weight: " + std::to_string(patient.weight) + "\n" +
+                              "Diagnosis Date: " + patient.diagnosisDate + "\n" +
+                              "Diagnosis: " + patient.diagnosis + "\n";
+    std::string encryptedPatientData = hillCipher(patientData, key, mod);
+
+    saveToFile("compressed.pap", encryptedData, encryptedTree, encryptedPatientData, width, height, channels);
+
+    std::cout << "Image and patient data compressed, encrypted, and saved as compressed.pap" << std::endl;
 
     return 0;
 }
